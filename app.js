@@ -9,74 +9,68 @@ var bodyParser = require('body-parser');
 
 var passport = require('passport');
 var FortyTwoStrategy = require('passport-42').Strategy;
+var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
 
-// Passport session setup.
-//   To support persistent login sessions, Passport needs to be able
-//   to serialize users into and deserialize users out of the session.
-//   Typically, this will be as simple as storing the user ID when
-//   serializing, and finding the user by ID when deserializing.
-//   However, since this example does not have a database of user
-//   records, the complete 42 profile is serialized and deserialized.
-passport.serializeUser(function(user, done) {
-  done(null, user);
-});
-
-passport.deserializeUser(function(obj, done) {
-  done(null, obj);
-});
-
-// Use the FortyTwoStrategy within Passport.
-//   Strategies in Passport require a `verify` function, which accept
-//   credentials (in this case, an accessToken, refreshToken, and 42
-//   profile), and invoke a callback with a user object.
+// Configure the 42 strategy for use by Passport.
+//
+// OAuth 2.0-based strategies require a `verify` function which receives the
+// credential (`accessToken`) for accessing the 42 API on the user's
+// behalf, along with the user's profile.  The function must invoke `cb`
+// with a user object, which will be set at `req.user` in route handlers after
+// authentication.
 passport.use(new FortyTwoStrategy({
-    clientID: process.env.FORTYTWO_CLIENT_ID,
-    clientSecret: process.env.FORTYTWO_CLIENT_SECRET,
-    callbackURL: "http://127.0.0.1:3000/auth/42/callback"
-  },
-  function(accessToken, refreshToken, profile, done) {
-    // asynchronous verification, for effect...
-    process.nextTick(function () {
+  clientID: process.env.FORTYTWO_CLIENT_ID,
+  clientSecret: process.env.FORTYTWO_CLIENT_SECRET,
+  callbackURL: 'http://127.0.0.1:3000/login/42/return'
+},
+function(accessToken, refreshToken, profile, cb) {
+  // In this example, the user's 42 profile is supplied as the user
+  // record.  In a production-quality application, the 42 profile should
+  // be associated with a user record in the application's database, which
+  // allows for account linking and authentication with other identity
+  // providers.
+  return cb(null, profile);
+}));
 
-      // To keep the example simple, the user's 42 profile is returned
-      // to represent the logged-in user.  In a typical application, you
-      // would want to associate the 42 account with a user record in your
-      // database, and return that user instead.
-      return done(null, profile);
-    });
-  }
-));
+// Configure Passport authenticated session persistence.
+//
+// In order to restore authentication state across HTTP requests, Passport needs
+// to serialize users into and deserialize users out of the session.  In a
+// production-quality application, this would typically be as simple as
+// supplying the user ID when serializing, and querying the user record by ID
+// from the database when deserializing.  However, due to the fact that this
+// example does not have a database, the complete 42 profile is serialized
+// and deserialized.
+passport.serializeUser(function(user, cb) {
+  cb(null, user);
+});
 
+passport.deserializeUser(function(obj, cb) {
+  cb(null, obj);
+});
+
+// Create a new Express application.
 var app = express();
 
-// view engine setup
+// Configure view engine to render handlebars templates.
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
 
+// Use application-level middleware for common functionality, including
+// logging, parsing, and session handling.
 app.use(logger('dev'));
-app.use(session({ resave: true, saveUninitialized: true, secret: '!terceS' }))
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(session({ resave: false, saveUninitialized: false, secret: '!terceS' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize Passport!  Also use passport.session() middleware, to support
-// persistent login sessions (recommended).
+// Initialize Passport and restore authentication state, if any, from the
+// session.
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Simple route middleware to ensure user is authenticated.
-//   Use this route middleware on any resource that needs to be protected.
-//   If the request is authenticated (typically via a persistent login
-//   session), the request will proceed.  Otherwise, the user will be
-//   redirected to the login page.
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) { return next(); }
-  res.redirect('/login')
-}
-
 // error handler
-app.use(function(err, req, res, next) {
+app.use(function(err, req, res) {
   // set locals, only providing error in development
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
@@ -88,42 +82,31 @@ app.use(function(err, req, res, next) {
 
 // Routes
 
-app.get('/', function(req, res){
-  res.render('index', { user: req.user });
-});
+// Define routes.
+app.get('/',
+    function(req, res) {
+      res.render('home', { user: req.user });
+    });
 
-app.get('/account', ensureAuthenticated, function(req, res){
-  res.render('account', { user: req.user });
-});
+app.get('/login',
+    function(req, res){
+      res.render('login');
+    });
 
-app.get('/login', function(req, res){
-  res.render('login', { user: req.user });
-});
+app.get('/login/42',
+    passport.authenticate('42'));
 
-// GET /auth/42
-//   Use passport.authenticate() as route middleware to authenticate the
-//   request.  The first step in 42 authentication will involve
-//   redirecting the user to 42.com.  After authorization, 42
-//   will redirect the user back to this application at
-//   /auth/42/callback
-app.get('/auth/42',
-  passport.authenticate('42'),
-  function(req, res, next){
-    // The request will be redirected to 42 for authentication, so this
-    // function will not be called.
-  });
+app.get('/login/42/return',
+    passport.authenticate('42', { failureRedirect: '/login' }),
+    function(req, res) {
+      res.redirect('/');
+    });
 
-// GET /auth/42/callback
-//   Use passport.authenticate() as route middleware to authenticate the
-//   request.  If authentication fails, the user will be redirected back
-//   to the login page.  Otherwise, the primary route function function
-//   will be called, which, in this example, will redirect the user to
-//   the home page.
-app.get('/auth/42/callback',
-  passport.authenticate('42', { failureRedirect: '/login' }),
-  function(req, res, next) {
-    res.redirect('/');
-  });
+app.get('/profile',
+    ensureLoggedIn(),
+    function(req, res){
+      res.render('profile', { user: req.user });
+    });
 
 app.get('/logout', function(req, res){
   req.logout();

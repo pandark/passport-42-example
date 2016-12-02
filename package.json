@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "body-parser": "1.15.x",
+    "connect-ensure-login": "0.1.x",
     "cookie-parser": "1.4.x",
     "debug": "2.2.x",
     "express": "4.14.x",

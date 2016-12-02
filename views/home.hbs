@@ -1,0 +1,6 @@
+{{^user}}
+    <p>Welcome! Please <a href="/login">log in</a>.</p>
+{{/user}}
+{{#user}}
+    <p>Hello, {{ displayName }}. View your <a href="/profile">profile</a>.</p>
+{{/user}}

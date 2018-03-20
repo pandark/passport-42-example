@@ -6,15 +6,15 @@
     "start": "node ./bin/www"
   },
   "dependencies": {
-    "body-parser": "1.15.x",
+    "body-parser": "1.x",
     "connect-ensure-login": "0.1.x",
-    "cookie-parser": "1.4.x",
-    "debug": "2.2.x",
-    "express": "4.14.x",
-    "express-session": "1.14.x",
-    "hbs": "4.0.x",
-    "morgan": "1.7.x",
-    "passport": "0.3.x",
+    "cookie-parser": "1.x",
+    "debug": "3.x",
+    "express": "4.x",
+    "express-session": "1.x",
+    "hbs": "4.x",
+    "morgan": "1.x",
+    "passport": "0.4.x",
     "passport-42": "1.x"
   }
 }
